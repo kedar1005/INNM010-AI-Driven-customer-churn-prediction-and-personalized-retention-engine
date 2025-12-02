@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Churn Analytics — Dark Dashboard</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ===== Global ===== */
+    :root{
+      --bg:#0f1724;
+      --card:#0f1724;
+      --glass: rgba(255,255,255,0.04);
+      --accent: #6c8cff;
+      --muted: #98a0b3;
+      --green: #29d28f;
+      --danger: #ff6b6b;
+      --amber: #ffbb4a;
+      --glass-2: rgba(255,255,255,0.03);
+    }
+    html,body{height:100%;}
+    body{
+      margin:0;
+      min-height:100%;
+      background: linear-gradient(180deg,#081024 0%, #071226 60%);
+      color:#e6eef8;
+      font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing:antialiased;
+      padding:20px;
+    }
+
+    /* Header */
+    .topbar {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; margin-bottom:18px;
+    }
+    .brand {
+      display:flex; align-items:center; gap:12px;
+    }
+    .logo {
+      width:44px; height:44px; border-radius:10px;
+      display:flex; align-items:center; justify-content:center;
+      background: linear-gradient(135deg, rgba(108,140,255,0.12), rgba(41,210,143,0.06));
+      border:1px solid rgba(255,255,255,0.03);
+    }
+    .brand h2{margin:0;font-size:18px;letter-spacing:0.2px;}
+    .brand small{display:block; color:var(--muted); font-size:12px;}
+
+    /* Cards */
+    .card-glass{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px; padding:18px; border:1px solid rgba(255,255,255,0.04);
+      box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+    }
+    .kpi-title{color:var(--muted); font-size:12px;}
+    .kpi-value{font-size:22px; font-weight:700; margin-top:6px;}
+
+    /* table */
+    .table-dark-custom thead th{color:var(--muted); font-size:12px; border-bottom:1px dashed rgba(255,255,255,0.04);}
+    .table-dark-custom tbody tr{transition:transform .12s ease, background .12s;}
+    .table-dark-custom tbody tr:hover{transform:translateY(-3px); background: linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));}
+
+    /* small badges */
+    .badge-risk-lg{padding:.25rem .5rem; border-radius:8px; font-weight:600; font-size:12px;}
+    .badge-low{background: rgba(41,210,143,0.12); color:var(--green); border:1px solid rgba(41,210,143,0.07);}
+    .badge-mid{background: rgba(255,187,74,0.08); color:var(--amber); border:1px solid rgba(255,187,74,0.06);}
+    .badge-high{background: linear-gradient(90deg, rgba(255,107,107,0.06), rgba(255,80,80,0.04)); color:#ff6b6b; border:1px solid rgba(255,80,80,0.06);}
+    .badge-critical{background: linear-gradient(90deg, rgba(255,80,80,0.12), rgba(255,50,50,0.04)); color:#ff3b3b; border:1px solid rgba(255,50,50,0.08); font-weight:700;}
+
+    /* modal content override */
+    .modal-content{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); color:inherit; border:1px solid rgba(255,255,255,0.04); }
+
+    /* nice button */
+    .btn-accent{ background: linear-gradient(90deg,var(--accent), #4fe3b4); border: none; color: #001; font-weight:700; }
+    .btn-outline-glass{ border:1px solid rgba(255,255,255,0.04); color:var(--muted); background:transparent; }
+
+    /* responsive tweaks */
+    @media (max-width: 880px){
+      .topbar { flex-direction:column; align-items:stretch; gap:8px; }
+    }
+
+    /* small helper */
+    .empty-note { color: var(--muted); font-size:13px; padding:12px; text-align:center; }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="2" width="20" height="20" rx="5" fill="#6C8CFF"/>
+          <path d="M7 10 L10 7 L17 14" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <h2>Churn Prediction & Personalized Retention Engine</h2>
+        <small>Real-time predictions · SHAP explainability · Retention actions</small>
+      </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <div class="me-2 text-muted small">Model: <span id="modelStatus">loading…</span></div>
+      <button class="btn btn-sm btn-outline-glass" onclick="manualRefresh()">Refresh</button>
+      <button class="btn btn-sm btn-accent" data-bs-toggle="modal" data-bs-target="#predictModal">Predict</button>
+    </div>
+  </div>
+
+  <!-- main grid -->
+  <div class="row g-3">
+
+    <!-- KPIs -->
+    <div class="col-12 col-xl-3">
+      <div class="card-glass">
+        <div class="kpi-title">Total Customers</div>
+        <div class="kpi-value" id="k_total">-</div>
+        <small class="text-muted">Dataset size</small>
+      </div>
+      <div style="height:12px"></div>
+      <div class="card-glass">
+        <div class="kpi-title">Churn Rate</div>
+        <div class="kpi-value" id="k_churn">-</div>
+        <small class="text-muted">Percentage of customers who churn</small>
+      </div>
+      <div style="height:12px"></div>
+      <div class="card-glass">
+        <div class="kpi-title">Monthly Revenue</div>
+        <div class="kpi-value" id="k_revenue">-</div>
+        <small class="text-muted">Sum of MonthlyCharges</small>
+      </div>
+    </div>
+
+    <!-- Charts column -->
+    <div class="col-12 col-xl-6">
+      <div class="card-glass mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div><strong>Churn Overview</strong><br><small class="text-muted">Model performance & trend</small></div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-glass" onclick="showArtifact('roc_curve.png')">ROC</button>
+            <button class="btn btn-sm btn-outline-glass" onclick="showArtifact('confusion_matrix.png')">Confusion</button>
+            <button class="btn btn-sm btn-outline-glass" onclick="showArtifact('feature_importance.png')">Features</button>
+          </div>
+        </div>
+
+        <div class="row g-2 align-items-center">
+          <div class="col-md-5 text-center">
+            <canvas id="donutChart" style="max-width:220px;"></canvas>
+            <div id="donutLabel" style="margin-top:8px;color:var(--muted)"></div>
+          </div>
+          <div class="col-md-7">
+            <canvas id="trendChart" height="160"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-glass">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div><strong>Risk Distribution</strong><br><small class="text-muted">Low / Mid / High / Critical</small></div>
+          <div class="text-muted small">Auto-updates</div>
+        </div>
+        <canvas id="riskBar" height="80"></canvas>
+      </div>
+    </div>
+
+    <!-- Right column: high-risk + upload -->
+    <div class="col-12 col-xl-3">
+      <div class="card-glass mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div><strong>High-Risk Customers</strong><br><small class="text-muted">Top 6 by churn probability</small></div>
+          <div><button class="btn btn-sm btn-outline-glass" onclick="exportHighrisk()">Export</button></div>
+        </div>
+<!-- FULL CUSTOMER RISK TABLE -->
+<div class="card-glass mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+            <strong>All Customers — Risk Table</strong><br>
+            <small class="text-muted">Full dataset with risk classification</small>
+        </div>
+        <button class="btn btn-sm btn-outline-glass" onclick="exportFullRisk()">Export CSV</button>
+    </div>
+
+    <div style="max-height:350px; overflow:auto;">
+        <table class="table table-borderless table-sm table-dark-custom mb-0">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Risk</th>
+                    <th>Probability</th>
+                </tr>
+            </thead>
+            <tbody id="fullRiskBody"></tbody>
+        </table>
+    </div>
+</div>
+
+      </div>
+
+      <div class="card-glass">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div><strong>Dataset</strong><br><small class="text-muted">Upload & retrain</small></div>
+        </div>
+
+        <div class="mb-2">
+          <input id="fileInput" type="file" accept=".csv" class="form-control form-control-sm">
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-accent" onclick="uploadDataset()">Upload & Retrain</button>
+          <button class="btn btn-sm btn-outline-glass" onclick="manualRetrain()">Retrain</button>
+        </div>
+        <div class="mt-2">
+          <div id="uploadStatus" class="small text-muted">No activity</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- bottom row: artifacts + SHAP -->
+  <div class="row g-3 mt-3">
+    <div class="col-md-8">
+      <div class="card-glass p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div><strong>Model Artifacts</strong><br><small class="text-muted">ROC, confusion matrix, SHAP</small></div>
+          <div class="text-muted small">Updated after retrain</div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <img id="img_roc" src="/artifacts/roc_curve.png" alt="ROC" style="height:120px; border-radius:8px; border:1px solid rgba(255,255,255,0.03)" onerror="this.style.display='none'">
+          <img id="img_conf" src="/artifacts/confusion_matrix.png" alt="Conf" style="height:120px; border-radius:8px; border:1px solid rgba(255,255,255,0.03)" onerror="this.style.display='none'">
+          <img id="img_shap" src="/artifacts/shap_summary.png" alt="SHAP" style="height:120px; border-radius:8px; border:1px solid rgba(255,255,255,0.03)" onerror="this.style.display='none'">
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card-glass p-3">
+        <div><strong>Retention Actions</strong><br><small class="text-muted">Example recommended actions</small></div>
+        <ul id="actionPreview" class="list-unstyled mt-2">
+          <li class="mb-2"><span class="badge-risk-lg badge-high">High</span> Immediate retention call + 30% discount</li>
+          <li class="mb-2"><span class="badge-risk-lg badge-mid">Mid</span> Priority support + 20% discount</li>
+          <li><span class="badge-risk-lg badge-low">Low</span> NPS & monitor</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Predict modal -->
+  <div class="modal fade" id="predictModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">Predict Single Customer</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <small class="text-muted">Paste a JSON array with one object. Keys should match dataset fields (or at least main numeric features).</small>
+          <textarea id="predictInput" class="form-control mt-2" rows="6">[{}]</textarea>
+          <div class="mt-3 d-flex justify-content-end">
+            <button class="btn btn-outline-glass me-2" data-bs-dismiss="modal">Close</button>
+            <button class="btn btn-accent" onclick="callPredictModal()">Run Prediction</button>
+          </div>
+
+          <div id="predictResult" class="mt-3" style="display:none;">
+            <h6>Result</h6>
+            <pre id="predictJson" style="background:rgba(0,0,0,0.35); padding:12px; border-radius:8px;"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Artifact modal -->
+  <div class="modal fade" id="artifactModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0"><h5 class="modal-title">Artifact</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body text-center"><img id="artifactImg" src="" style="max-width:100%; border-radius:8px;"/></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS (bundle contains Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // ========= Utility =========
+    function setText(id, text){ const el = document.getElementById(id); if(el) el.innerText = text; }
+
+    // ========= Charts =========
+    let donutChart=null, trendChart=null, riskBar=null;
+
+    function initCharts(){
+      // Donut
+      const dctx = document.getElementById('donutChart').getContext('2d');
+      donutChart = new Chart(dctx, {
+        type:'doughnut',
+        data:{ labels:['Churn','Active'], datasets:[{ data:[10,90], backgroundColor:['#ff6b6b','#243447']}] },
+        options:{ cutout:'70%', plugins:{legend:{display:false}}}
+      });
+
+      // Trend
+      const tctx = document.getElementById('trendChart').getContext('2d');
+      trendChart = new Chart(tctx, {
+        type:'line',
+        data:{ labels: ['W-7','W-6','W-5','W-4','W-3','W-2','W-1','Now'],
+               datasets:[{ label:'Avg churn probability', data:[12,13,15,14,18,20,22,26], tension:0.38, fill:true, backgroundColor:'rgba(108,140,255,0.08)', borderColor:'rgba(108,140,255,0.9)'}] },
+        options:{ plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+      });
+
+      // Risk bars (placeholder values)
+      const rctx = document.getElementById('riskBar').getContext('2d');
+      riskBar = new Chart(rctx, {
+        type:'bar',
+        data:{ labels:['Low','Mid','High','Critical'], datasets:[{ data:[60,20,15,5], backgroundColor:['#29d28f','#ffbb4a','#ff6b6b','#ff3b3b'] }] },
+        options:{ plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+      });
+    }
+
+    // ========= Load and render dashboard data =========
+    async function loadDashboard(){
+      try {
+        // metrics
+        const metrics = await fetch('/metrics').then(r=>r.json());
+        setText('k_total', metrics.total_customers ?? '-');
+
+        // churn_rate comes as fraction (0-1) from backend. convert to 0-100 integer for display.
+        const churnPct = Math.round((metrics.churn_rate || 0) * 100);
+        setText('k_churn', churnPct !== 0 ? (churnPct + '%') : '-');
+        setText('k_revenue', metrics.monthly_revenue ? metrics.monthly_revenue.toFixed(2) : '-');
+        setText('modelStatus', 'ready');
+
+        // donut update (use integer 0-100)
+        donutChart.data.datasets[0].data = [churnPct, Math.max(0,100-churnPct)];
+        donutChart.update();
+        document.getElementById('donutLabel').innerText = 'Churn rate: ' + churnPct + '%';
+
+        // trend & risk: update trend by shifting (visual placeholder)
+        trendChart.data.datasets[0].data.push(churnPct); trendChart.data.datasets[0].data.shift();
+        trendChart.update();
+
+        // high risk customers
+        await loadFullRiskTable();
+
+        const hr = await fetch('/customers/highrisk').then(r=>r.json());
+        const tbody = document.getElementById('highRiskBody');
+        const emptyNote = document.getElementById('highRiskEmpty');
+        tbody.innerHTML='';
+        if(!hr.rows || hr.rows.length === 0){
+          emptyNote.style.display = 'block';
+        } else {
+          emptyNote.style.display = 'none';
+          hr.rows.slice(0,6).forEach((r,i)=>{
+            // backend should send churn_prob as integer 0-100 and risk string
+            const prob = Number(r.churn_prob) || 0;
+            const pct = prob;
+
+            // prefer backend-provided category if available
+            const category = r.risk ? String(r.risk) : (prob >= 85 ? 'Critical' : (prob >= 60 ? 'High' : (prob >= 30 ? 'Mid' : 'Low')));
+
+            let badge = '';
+            if (category === 'Critical') badge = '<span class="badge-risk-lg badge-critical">Critical</span>';
+            else if (category === 'High') badge = '<span class="badge-risk-lg badge-high">High</span>';
+            else if (category === 'Mid') badge = '<span class="badge-risk-lg badge-mid">Mid</span>';
+            else badge = '<span class="badge-risk-lg badge-low">Low</span>';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td style="min-width:140px"><div style="display:flex; align-items:center; gap:10px">
+                            <div style="width:38px;height:38px;border-radius:8px;background:linear-gradient(135deg,rgba(108,140,255,0.12),rgba(41,210,143,0.06)); display:flex; align-items:center; justify-content:center; font-weight:700;">${(i+1)}</div>
+                            <div><div style="font-weight:600">${r.customerID||'—'}</div><div style="font-size:12px;color:var(--muted)">${pct}%</div></div>
+                          </div></td><td>${badge}</td>`;
+            tr.onclick = ()=> openCustomerDetail(r.customerID);
+            tbody.appendChild(tr);
+          });
+        }
+
+      } catch(err){
+        console.error('Dashboard load error', err);
+        setText('modelStatus','not ready');
+      }
+    }
+
+    // ========= Predict modal =========
+    async function callPredictModal(){
+      const raw = document.getElementById('predictInput').value;
+      let records = [];
+      try{ records = JSON.parse(raw); if(!Array.isArray(records)) throw 'Not array'; } catch(e){ alert('Invalid JSON array'); return; }
+      document.getElementById('predictResult').style.display='block';
+      document.getElementById('predictJson').innerText = 'Running...';
+      try{
+        const resp = await fetch('/predict', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(records) });
+        const j = await resp.json();
+        document.getElementById('predictJson').innerText = JSON.stringify(j, null, 2);
+      }catch(e){
+        document.getElementById('predictJson').innerText = 'Error: ' + (e.message || e);
+      }
+    }
+
+    // ========= Upload dataset =========
+    async function uploadDataset(){
+      const fi = document.getElementById('fileInput');
+      if(!fi.files.length){ alert('Select CSV file'); return; }
+      const fd = new FormData(); fd.append('file', fi.files[0]);
+      setText('uploadStatus','Uploading…');
+      try{
+        const res = await fetch('/upload_dataset', { method:'POST', body: fd });
+        const j = await res.json();
+        setText('uploadStatus', j.message || 'Uploaded. Retraining...');
+        // poll dashboard after a short delay to let retrain start
+        setTimeout(()=>{ loadDashboard(); }, 4000);
+      }catch(e){
+        setText('uploadStatus','Upload failed');
+        console.error(e);
+      }
+    }
+
+    async function manualRetrain(){
+      setText('uploadStatus','Retrain requested — run train_model.py on server.');
+    }
+
+    // ========= Open artifact larger =========
+    function showArtifact(name){
+      const img = document.getElementById('artifactImg'); img.src = '/artifacts/' + name;
+      const m = new bootstrap.Modal(document.getElementById('artifactModal')); m.show();
+    }
+
+    // ========= Export highrisk as CSV =========
+    function exportHighrisk(){
+      fetch('/customers/highrisk').then(r=>r.json()).then(j=>{
+        let csv = 'customerID,churn_prob,risk\n';
+        (j.rows || []).forEach(rw => csv += `${rw.customerID || ''},${rw.churn_prob || ''},${rw.risk || ''}\n`);
+        const blob = new Blob([csv], { type:'text/csv' });
+        const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='highrisk.csv'; a.click();
+      });
+    }
+
+    function manualRefresh(){ loadDashboard(); }
+
+    function openCustomerDetail(id){
+      alert('Open details for customer: ' + id + '\n(Use Predict modal to pass full record.)');
+    }
+
+    // ===== init =====
+    document.addEventListener('DOMContentLoaded', ()=>{ initCharts(); loadDashboard(); setInterval(loadDashboard, 10000); });
+
+    // ========= Load full risk table =========
+async function loadFullRiskTable() {
+    const data = await fetch('/customers/highrisk?limit=5000').then(r => r.json());
+    const tbody = document.getElementById('fullRiskBody');
+    tbody.innerHTML = '';
+
+    data.rows.forEach((r, i) => {
+        const prob = r.churn_prob || 0;
+        const pct = (prob).toFixed(1);
+
+        let badge = '';
+        if (prob >= 85) badge = '<span class="badge-risk-lg badge-red">Critical</span>';
+        else if (prob >= 60) badge = '<span class="badge-risk-lg badge-red">High</span>';
+        else if (prob >= 30) badge = '<span class="badge-risk-lg badge-amber">Mid</span>';
+        else badge = '<span class="badge-risk-lg badge-green">Low</span>';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${r.customerID || '—'}</td>
+            <td>${badge}</td>
+            <td>${pct}%</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+function exportFullRisk() {
+    fetch('/customers/highrisk?limit=5000')
+        .then(r => r.json())
+        .then(j => {
+            let csv = 'customerID,churn_prob,risk\n';
+
+            j.rows.forEach(rw => {
+                let risk = '';
+                if (rw.churn_prob >= 85) risk = 'Critical';
+                else if (rw.churn_prob >= 60) risk = 'High';
+                else if (rw.churn_prob >= 30) risk = 'Mid';
+                else risk = 'Low';
+
+                csv += `${rw.customerID || ''},${rw.churn_prob},${risk}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'full_risk_table.csv';
+            a.click();
+        });
+}
+
+
+
+
+  </script>
+</body>
+</html>

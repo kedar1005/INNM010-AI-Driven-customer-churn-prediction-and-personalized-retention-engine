@@ -1,0 +1,8 @@
+{
+  "data_path": "data/telco_customer_churn.csv",
+  "model_dir": "models",
+  "artifact_dir": "artifacts",
+  "model_file": "churn_model.pkl",
+  "random_state": 42,
+  "test_size": 0.2
+}
