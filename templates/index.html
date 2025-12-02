@@ -52,6 +52,10 @@
     .brand h2{margin:0;font-size:18px;letter-spacing:0.2px;}
     .brand small{display:block; color:var(--muted); font-size:12px;}
 
+    .text-muted {
+    color: #ffffff !important;
+}
+
     /* Cards */
     .card-glass{
       background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
@@ -101,12 +105,12 @@
       </div>
       <div>
         <h2>Churn Prediction & Personalized Retention Engine</h2>
-        <small>Real-time predictions · SHAP explainability · Retention actions</small>
+        <!-- <small>Real-time predictions · SHAP explainability · Retention actions</small> -->
       </div>
     </div>
 
     <div class="d-flex align-items-center gap-2">
-      <div class="me-2 text-muted small">Model: <span id="modelStatus">loading…</span></div>
+      <div class="me-2 text-muted small" style="color: #ffbb4a;">Model: <span id="modelStatus">loading…</span></div>
       <button class="btn btn-sm btn-outline-glass" onclick="manualRefresh()">Refresh</button>
       <button class="btn btn-sm btn-accent" data-bs-toggle="modal" data-bs-target="#predictModal">Predict</button>
     </div>
@@ -120,13 +124,13 @@
       <div class="card-glass">
         <div class="kpi-title">Total Customers</div>
         <div class="kpi-value" id="k_total">-</div>
-        <small class="text-muted">Dataset size</small>
+        <small class="text-muted"style="color: #ffbb4a;">Dataset size</small>
       </div>
       <div style="height:12px"></div>
       <div class="card-glass">
         <div class="kpi-title">Churn Rate</div>
         <div class="kpi-value" id="k_churn">-</div>
-        <small class="text-muted">Percentage of customers who churn</small>
+        <small class="text-muted"style="color: #ffbb4a;">Percentage of customers who churn</small>
       </div>
       <div style="height:12px"></div>
       <div class="card-glass">
@@ -172,7 +176,7 @@
     <div class="col-12 col-xl-3">
       <div class="card-glass mb-3">
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <div><strong>High-Risk Customers</strong><br><small class="text-muted">Top 6 by churn probability</small></div>
+          <!-- <div><strong>High-Risk Customers</strong><br><small class="text-muted">Top 6 by churn probability</small></div> -->
           <div><button class="btn btn-sm btn-outline-glass" onclick="exportHighrisk()">Export</button></div>
         </div>
 <!-- FULL CUSTOMER RISK TABLE -->
@@ -241,6 +245,8 @@
       <div class="card-glass p-3">
         <div><strong>Retention Actions</strong><br><small class="text-muted">Example recommended actions</small></div>
         <ul id="actionPreview" class="list-unstyled mt-2">
+                    <li class="mb-2"><span class="badge-risk-lg badge-critical">Critical</span> value-added services,loyalty programs</li>
+
           <li class="mb-2"><span class="badge-risk-lg badge-high">High</span> Immediate retention call + 30% discount</li>
           <li class="mb-2"><span class="badge-risk-lg badge-mid">Mid</span> Priority support + 20% discount</li>
           <li><span class="badge-risk-lg badge-low">Low</span> NPS & monitor</li>
